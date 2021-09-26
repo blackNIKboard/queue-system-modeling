@@ -22,6 +22,7 @@ func main() {
 		return
 	}
 
+	// Pushing requests to system
 	for i := 0; i < 30; i++ {
 		if err := ss.SendRequest(models.Request{
 			IsFinished: false,

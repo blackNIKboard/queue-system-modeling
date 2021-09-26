@@ -4,8 +4,6 @@ import "time"
 
 type Request struct {
 	IsFinished bool
-	AppendTime time.Duration
-	EndTime    time.Duration
+	AppendTime time.Time
+	EndTime    time.Time
 }
-
-

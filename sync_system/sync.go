@@ -52,7 +52,13 @@ func (s SyncSystem) SendRequest(request models.Request) error {
 }
 
 func (s SyncSystem) GetAvgTime() time.Duration {
-	panic("implement me")
+	var sum time.Duration
+
+	for _, request := range *s.discard {
+		sum += request.EndTime.Sub(request.AppendTime)
+	}
+
+	return sum / time.Duration(len(*s.discard))
 }
 
 func (s SyncSystem) CountQueuedRequests() int {
@@ -75,8 +81,12 @@ func (s SyncSystem) process() {
 
 			return
 		default:
-			log.Println("testing") //todo
+			request := s.queue.PopFront().(models.Request)
 			time.Sleep(time.Second)
+			request.EndTime = time.Now()
+			request.IsFinished = true
+
+			*s.discard = append(*s.discard, request)
 		}
 	}
 }

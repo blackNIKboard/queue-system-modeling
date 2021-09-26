@@ -7,12 +7,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/blackNIKboard/queue-system-modeling/async_system"
 	"github.com/blackNIKboard/queue-system-modeling/models"
-	"github.com/blackNIKboard/queue-system-modeling/sync_system"
 )
 
 func main() {
-	ss := sync_system.NewSyncSystem()
+	ss := async_system.NewAsyncSystem()
 
 	//spew.Dump(poisson.GeneratePoissonProcess(0.05))
 

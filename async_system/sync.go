@@ -1,4 +1,4 @@
-package sync_system
+package async_system
 
 import (
 	"context"
@@ -9,19 +9,19 @@ import (
 	gq "github.com/phf/go-queue/queue"
 )
 
-var _ models.QSystem = (*SyncSystem)(nil)
+var _ models.QSystem = (*AsyncSystem)(nil)
 
-type SyncSystem struct {
+type AsyncSystem struct {
 	ctx     context.Context
 	cancel  context.CancelFunc
 	queue   *gq.Queue
 	discard *[]models.Request
 }
 
-func NewSyncSystem() *SyncSystem {
+func NewAsyncSystem() *AsyncSystem {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	return &SyncSystem{
+	return &AsyncSystem{
 		ctx:     ctx,
 		cancel:  cancel,
 		queue:   gq.New(),
@@ -29,7 +29,7 @@ func NewSyncSystem() *SyncSystem {
 	}
 }
 
-func (s SyncSystem) Start(timeout int) error {
+func (s AsyncSystem) Start(timeout int) error {
 	if timeout > 0 {
 		s.ctx, s.cancel = context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
 	}
@@ -39,19 +39,19 @@ func (s SyncSystem) Start(timeout int) error {
 	return nil
 }
 
-func (s SyncSystem) Stop() error {
+func (s AsyncSystem) Stop() error {
 	s.cancel()
 
 	return nil
 }
 
-func (s SyncSystem) SendRequest(request models.Request) error {
+func (s AsyncSystem) SendRequest(request models.Request) error {
 	s.queue.PushBack(request)
 
 	return nil
 }
 
-func (s SyncSystem) GetAvgTime() time.Duration {
+func (s AsyncSystem) GetAvgTime() time.Duration {
 	var sum time.Duration
 
 	for _, request := range *s.discard {
@@ -61,19 +61,19 @@ func (s SyncSystem) GetAvgTime() time.Duration {
 	return sum / time.Duration(len(*s.discard))
 }
 
-func (s SyncSystem) CountQueuedRequests() int {
+func (s AsyncSystem) CountQueuedRequests() int {
 	return s.queue.Len()
 }
 
-func (s SyncSystem) GetProcessedRequests() *[]models.Request {
+func (s AsyncSystem) GetProcessedRequests() *[]models.Request {
 	return s.discard
 }
 
-func (s SyncSystem) GetCtx() context.Context {
+func (s AsyncSystem) GetCtx() context.Context {
 	return s.ctx
 }
 
-func (s SyncSystem) process() {
+func (s AsyncSystem) process() {
 	for {
 		select {
 		case <-s.ctx.Done():

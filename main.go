@@ -28,13 +28,14 @@ func avg(arr []float64) float64 {
 	return sum / float64(len(arr))
 }
 
-func waitForCtx(ctx context.Context) {
+func waitForCtx(ctx context.Context, system *async_system.AsyncSystem) {
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		default:
-			log.Println("waiting for the system")
+			log.Printf("waiting for the system: %10d processed, remaining %10d\n", len(*system.GetProcessedRequests()),
+				system.CountQueuedRequests())
 			time.Sleep(time.Second)
 		}
 	}
@@ -72,9 +73,6 @@ func compute(alpha float64, requests int) (avgTime float64, avgUsers float64, ov
 			request.AppendTime = prevRequest.AppendTime + time.Duration(tmp)*time.Millisecond
 		}
 
-		if request.AppendTime < prevRequest.AppendTime {
-			panic(fmt.Errorf("ZHOPA"))
-		}
 		//fmt.Printf("Request #%d diff: %d\n", i, (request.AppendTime - prevRequest.AppendTime).Milliseconds())
 		prevRequest = request
 
@@ -85,14 +83,12 @@ func compute(alpha float64, requests int) (avgTime float64, avgUsers float64, ov
 		return
 	}
 
-	waitForCtx(ss.GetCtx())
+	waitForCtx(ss.GetCtx(), ss)
 
 	avgTime = ss.GetAvgTime().Seconds()
 
-	processed := *ss.GetProcessedRequests()
-
-	overallTime = processed[len(processed)-1].EndTime.Seconds()
-	avgUsers = float64(len(processed)) / overallTime
+	overallTime = ss.GetSystemTime().Seconds()
+	avgUsers = ss.GetAvgUsers()
 
 	log.Printf("avgTime %f, overallTime %f, avgUsers %f", avgTime, overallTime, avgUsers)
 
@@ -122,7 +118,7 @@ func main() {
 	defer fileTheor.Close()
 
 	for i := 0.01; i <= 1; i += 0.1 {
-		avgTime, avgUsers, _ := compute(i, 1000)
+		avgTime, avgUsers, _ := compute(i, 100000)
 		theorAvgTime, theorAvgUsers := theorCompute(i)
 		fmt.Fprintf(file, "%5f %5f %5f\n", avgUsers, avgTime, i)
 		fmt.Fprintf(fileTheor, "%5f %5f %5f\n", theorAvgUsers, theorAvgTime, i)

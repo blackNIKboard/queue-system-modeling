@@ -12,12 +12,22 @@ import (
 var _ models.QSystem = (*AsyncSystem)(nil)
 
 type AsyncSystem struct {
-	ctx         context.Context
-	systemTime  *time.Duration
-	stopIfEmpty bool
-	cancel      context.CancelFunc
-	queue       *gq.Queue
-	discard     *[]models.Request
+	ctx         context.Context    // context of running modelling
+	systemTime  *time.Duration     // modelling system time (relative (from 0 to ...))
+	stopIfEmpty bool               //flag of stopping modelling if no requests in queue
+	cancel      context.CancelFunc // cancelFunc of ctx
+	systemQueue *gq.Queue          // overall requests queue
+	queue       *gq.Queue          // 'real-time' queue
+	discard     *[]models.Request  // processed requests
+
+	userStat *Stat // statistics of users waiting for processing
+
+	currentRequest *models.Request // current request being processed
+}
+
+type Stat struct {
+	data  []int // not-zero values
+	nulls int   //number of zeros occurred
 }
 
 func NewAsyncSystem(timeout int, stopIfEmpty bool) *AsyncSystem {
@@ -34,8 +44,10 @@ func NewAsyncSystem(timeout int, stopIfEmpty bool) *AsyncSystem {
 		cancel:      cancel,
 		stopIfEmpty: stopIfEmpty,
 		systemTime:  &duration,
+		systemQueue: gq.New(),
 		queue:       gq.New(),
 		discard:     &[]models.Request{},
+		userStat:    &Stat{},
 	}
 }
 
@@ -53,12 +65,12 @@ func (s *AsyncSystem) Stop() error {
 
 func (s *AsyncSystem) SendRequest(request *models.Request) error {
 	if request != nil {
-		s.queue.PushBack(*request)
+		s.systemQueue.PushBack(*request)
 
 		return nil
 	}
 
-	s.queue.PushBack(models.Request{
+	s.systemQueue.PushBack(models.Request{
 		IsFinished: false,
 		AppendTime: *s.systemTime,
 		EndTime:    0,
@@ -82,7 +94,16 @@ func (s *AsyncSystem) GetSystemTime() time.Duration {
 }
 
 func (s *AsyncSystem) CountQueuedRequests() int {
-	return s.queue.Len()
+	return s.queue.Len() + s.systemQueue.Len()
+}
+
+func (s *AsyncSystem) GetAvgUsers() float64 {
+	var sum int
+
+	for _, i := range s.userStat.data {
+		sum += i
+	}
+	return float64(sum) / float64(len(s.userStat.data)+s.userStat.nulls)
 }
 
 func (s *AsyncSystem) GetProcessedRequests() *[]models.Request {
@@ -101,31 +122,43 @@ func (s *AsyncSystem) process() {
 
 			return
 		default:
+			if s.systemQueue.Len() != 0 {
+				newRequest := s.systemQueue.PopFront().(models.Request)
+				if newRequest.AppendTime > *s.systemTime {
+					s.systemQueue.PushFront(newRequest)
+				} else {
+					s.queue.PushBack(newRequest)
+					//s.stat = append(s.stat, s.queue.Len())
+				}
+			}
+
 			if s.queue.Len() == 0 {
-				if s.stopIfEmpty {
+				if s.stopIfEmpty && s.systemQueue.Len() == 0 {
 					s.cancel()
 				}
+			} else if s.currentRequest == nil {
+				request := s.queue.PopFront().(models.Request)
 
-				continue
+				s.currentRequest = &request
+				s.currentRequest.EndTime = *s.systemTime + time.Second
 			}
 
-			request := s.queue.PopFront().(models.Request)
-			//time.Sleep(time.Second)
-			if request.AppendTime > *s.systemTime {
-				s.queue.PushFront(request)
-				*s.systemTime += time.Millisecond
+			if s.currentRequest != nil && (*s.currentRequest).EndTime < *s.systemTime {
+				request := *s.currentRequest
+				s.currentRequest = nil
 
-				continue
+				request.IsFinished = true
+				//fmt.Printf("processed, took e-a=r: %v-%v=%v\n", request.EndTime.Milliseconds(), request.AppendTime.Milliseconds(), (request.EndTime - request.AppendTime).Milliseconds())
+				*s.discard = append(*s.discard, request)
+
+				if s.queue.Len() != 0 {
+					s.userStat.data = append(s.userStat.data, s.queue.Len())
+				} else {
+					s.userStat.nulls++
+				}
 			}
 
-			*s.systemTime += time.Second
-
-			request.EndTime = *s.systemTime
-			request.IsFinished = true
-
-			//fmt.Printf("processed, took e-a=r: %v-%v=%v\n", request.EndTime.Milliseconds(), request.AppendTime.Milliseconds(), (request.EndTime - request.AppendTime).Milliseconds())
-
-			*s.discard = append(*s.discard, request)
+			*s.systemTime += 10 * time.Millisecond
 		}
 	}
 }

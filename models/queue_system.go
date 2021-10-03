@@ -3,10 +3,11 @@ package models
 import "time"
 
 type QSystem interface {
-	Start(timeout int) error
+	Start() error
 	Stop() error
-	SendRequest(request Request) error
+	SendRequest(*Request) error
 	GetAvgTime() time.Duration
+	GetSystemTime() time.Duration
 	CountQueuedRequests() int
 	GetProcessedRequests() *[]Request
 }

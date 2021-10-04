@@ -158,7 +158,7 @@ func (s *AsyncSystem) process() {
 				}
 			}
 
-			*s.systemTime += 10 * time.Millisecond
+			*s.systemTime += time.Millisecond
 		}
 	}
 }

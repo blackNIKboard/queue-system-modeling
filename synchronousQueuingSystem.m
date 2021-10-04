@@ -1,7 +1,7 @@
 close all
 clear, clc
 
-figure()
+figure() % N async
 ideal = load('res.txt');
 xi = ideal(:,3); 
 yi = ideal(:,1);
@@ -21,12 +21,12 @@ title('N asynchronous');
 
 
 
-figure()
+figure() % D async
 ideal = load('res.txt');
 xi = ideal(:,3); 
 yi = ideal(:,2);
 plot(xi, yi); 
-ylim([0 6])
+ylim([0 7])
 xlabel('Lambda')
 ylabel('D')
 grid on;
@@ -38,8 +38,15 @@ plot(xi_t, yi_t);
 legend('Practic','Theor')
 title('D asynchronous');
 
-
-
-
-
-
+figure()
+ideal = load('res.txt');
+xi = ideal(:,3); 
+yi = ideal(:,4);
+plot(xi, yi); 
+ylim([0 1.1])
+xlabel('Input')
+ylabel('Output')
+grid on;
+hold on;
+legend('Practic')
+title('Intensity');

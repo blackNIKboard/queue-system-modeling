@@ -7,12 +7,18 @@ import (
 	"math"
 	"math/rand"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/blackNIKboard/queue-system-modeling/async_system"
 	"github.com/blackNIKboard/queue-system-modeling/models"
 	"github.com/davecgh/go-spew/spew"
 )
+
+type result struct {
+	intputFlow                    float64
+	avgTime, avgUsers, outputFlow *float64
+}
 
 func exp(lambda float64) float64 {
 	return math.Log(1-rand.Float64()) / (-1 / lambda)
@@ -55,7 +61,13 @@ func testExp() {
 	spew.Dump(avg(arr))
 }
 
-func compute(alpha float64, requests int) (avgTime float64, avgUsers float64, overallTime float64) {
+func computeWrapper(avgTime, avgUsers, outputFlow *float64, alpha float64, requests int, wg *sync.WaitGroup) {
+	*avgTime, *avgUsers, *outputFlow = compute(alpha, requests)
+
+	wg.Done()
+}
+
+func compute(alpha float64, requests int) (avgTime float64, avgUsers float64, outputFlow float64) {
 	log.Printf("---computing fo alpha %f\n", alpha)
 
 	ss := async_system.NewAsyncSystem(50, true)
@@ -87,10 +99,10 @@ func compute(alpha float64, requests int) (avgTime float64, avgUsers float64, ov
 
 	avgTime = ss.GetAvgTime().Seconds()
 
-	overallTime = ss.GetSystemTime().Seconds()
+	outputFlow = float64(requests) / ss.GetSystemTime().Seconds()
 	avgUsers = ss.GetAvgUsers()
 
-	log.Printf("avgTime %f, overallTime %f, avgUsers %f", avgTime, overallTime, avgUsers)
+	log.Printf("avgTime %f, outputFlow %f, avgUsers %f", avgTime, outputFlow, avgUsers)
 
 	return
 }
@@ -117,10 +129,27 @@ func main() {
 	}
 	defer fileTheor.Close()
 
-	for i := 0.01; i <= 1; i += 0.1 {
-		avgTime, avgUsers, _ := compute(i, 100000)
-		theorAvgTime, theorAvgUsers := theorCompute(i)
-		fmt.Fprintf(file, "%5f %5f %5f\n", avgUsers, avgTime, i)
-		fmt.Fprintf(fileTheor, "%5f %5f %5f\n", theorAvgUsers, theorAvgTime, i)
+	var (
+		results   []result
+		maxAlpha  = 1.2
+		alphaStep = 0.1
+		requests  = 10000
+	)
+	wg := sync.WaitGroup{}
+	for i := 0.01; i <= maxAlpha; i += alphaStep {
+		avgTime, avgUsers, outputFlow := 0.0, 0.0, 0.0
+		results = append(results, result{intputFlow: i, avgTime: &avgTime, avgUsers: &avgUsers, outputFlow: &outputFlow})
+		wg.Add(1)
+
+		go computeWrapper(results[len(results)-1].avgTime, results[len(results)-1].avgUsers, results[len(results)-1].outputFlow, results[len(results)-1].intputFlow, requests, &wg)
+		//avgTime, avgUsers, outputFlow := compute(i, 1000)
+	}
+
+	wg.Wait()
+
+	for i := 0; i < len(results); i++ {
+		theorAvgTime, theorAvgUsers := theorCompute(results[i].intputFlow)
+		fmt.Fprintf(file, "%5f %5f %5f %5f\n", *results[i].avgUsers, *results[i].avgTime, results[i].intputFlow, *results[i].outputFlow)
+		fmt.Fprintf(fileTheor, "%5f %5f %5f\n", theorAvgUsers, theorAvgTime, results[i].intputFlow)
 	}
 }

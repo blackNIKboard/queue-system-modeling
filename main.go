@@ -34,13 +34,13 @@ func avg(arr []float64) float64 {
 	return sum / float64(len(arr))
 }
 
-func waitForCtx(ctx context.Context, system *async_system.AsyncSystem) {
+func waitForCtx(ctx context.Context, system *async_system.AsyncSystem, intensity float64) {
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		default:
-			log.Printf("waiting for the system: %10d processed, remaining %10d\n", len(*system.GetProcessedRequests()),
+			log.Printf("waiting for the %2f system: %10d processed, remaining %10d\n", intensity, len(*system.GetProcessedRequests()),
 				system.CountQueuedRequests())
 			time.Sleep(time.Second)
 		}
@@ -95,7 +95,7 @@ func compute(alpha float64, requests int) (avgTime float64, avgUsers float64, ou
 		return
 	}
 
-	waitForCtx(ss.GetCtx(), ss)
+	waitForCtx(ss.GetCtx(), ss, alpha)
 
 	avgTime = ss.GetAvgTime().Seconds()
 
@@ -131,7 +131,7 @@ func main() {
 
 	var (
 		results   []result
-		maxAlpha  = 1.2
+		maxAlpha  = 2.7
 		alphaStep = 0.1
 		requests  = 10000
 	)
@@ -141,7 +141,7 @@ func main() {
 		results = append(results, result{intputFlow: i, avgTime: &avgTime, avgUsers: &avgUsers, outputFlow: &outputFlow})
 		wg.Add(1)
 
-		go computeWrapper(results[len(results)-1].avgTime, results[len(results)-1].avgUsers, results[len(results)-1].outputFlow, results[len(results)-1].intputFlow, requests, &wg)
+		computeWrapper(results[len(results)-1].avgTime, results[len(results)-1].avgUsers, results[len(results)-1].outputFlow, results[len(results)-1].intputFlow, requests, &wg)
 		//avgTime, avgUsers, outputFlow := compute(i, 1000)
 	}
 

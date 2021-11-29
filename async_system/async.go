@@ -140,7 +140,7 @@ func (s *AsyncSystem) process() {
 				request := s.queue.PopFront().(models.Request)
 
 				s.currentRequest = &request
-				s.currentRequest.EndTime = *s.systemTime + time.Second
+				s.currentRequest.EndTime = *s.systemTime + 500*time.Millisecond
 			}
 
 			if s.currentRequest != nil && (*s.currentRequest).EndTime < *s.systemTime {
